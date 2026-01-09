@@ -3,8 +3,8 @@
 Singleton connection manager for aio-pika RabbitMQ connections.
 Provides shared connection and channel for all consumers and producers.
 """
-from typing import Optional
 import asyncio
+from typing import Optional
 
 import aio_pika
 from aio_pika import Channel
