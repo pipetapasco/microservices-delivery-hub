@@ -9,6 +9,7 @@ FIX DE CONCURRENCIA:
 
 import asyncio
 import json
+import time
 
 import pika
 from sqlalchemy.orm import Session
@@ -140,42 +141,62 @@ _dispatch_consumer_tag = None
 def start_dispatch_consumer():
     """Inicia el consumidor de eventos de despacho."""
     global _dispatch_consumer_connection, _dispatch_consumer_channel, _dispatch_consumer_tag
-    try:
-        credentials = pika.PlainCredentials(settings.RABBITMQ_USER, settings.RABBITMQ_PASSWORD)
-        parameters = pika.ConnectionParameters(
-            host=settings.RABBITMQ_HOST,
-            port=settings.RABBITMQ_PORT,
-            credentials=credentials,
-            heartbeat=600,
-            blocked_connection_timeout=300,
-        )
-        _dispatch_consumer_connection = pika.BlockingConnection(parameters)
-        _dispatch_consumer_channel = _dispatch_consumer_connection.channel()
-        _dispatch_consumer_channel.exchange_declare(
-            exchange=settings.RABBITMQ_DISPATCH_EXCHANGE, exchange_type="direct", durable=True
-        )
-        result = _dispatch_consumer_channel.queue_declare(
-            queue=settings.RABBITMQ_MOTOTAXI_DISPATCH_QUEUE, durable=True
-        )
-        queue_name = result.method.queue
-        _dispatch_consumer_channel.queue_bind(
-            exchange=settings.RABBITMQ_DISPATCH_EXCHANGE,
-            queue=queue_name,
-            routing_key=settings.RABBITMQ_DISPATCH_MOTOTAXI_ROUTING_KEY,
-        )
-        _dispatch_consumer_tag = _dispatch_consumer_channel.basic_consume(
-            queue=queue_name, on_message_callback=on_dispatch_message_callback, auto_ack=False
-        )
-        logger.info(f"Esperando eventos de despacho en la cola '{queue_name}'")
-        _dispatch_consumer_channel.start_consuming()
-    except pika.exceptions.AMQPConnectionError as e:
-        logger.error(f"No se pudo conectar a RabbitMQ: {e}")
-    except KeyboardInterrupt:
-        logger.info("Consumidor de despacho detenido manualmente")
-    except Exception as e:
-        logger.exception(f"Error inesperado en consumidor de despacho: {e}")
-    finally:
-        stop_dispatch_consumer()
+    retries = 0
+    max_retries = 30
+
+    while retries < max_retries:
+        try:
+            credentials = pika.PlainCredentials(settings.RABBITMQ_USER, settings.RABBITMQ_PASSWORD)
+            parameters = pika.ConnectionParameters(
+                host=settings.RABBITMQ_HOST,
+                port=settings.RABBITMQ_PORT,
+                credentials=credentials,
+                heartbeat=600,
+                blocked_connection_timeout=300,
+            )
+            _dispatch_consumer_connection = pika.BlockingConnection(parameters)
+            _dispatch_consumer_channel = _dispatch_consumer_connection.channel()
+            _dispatch_consumer_channel.exchange_declare(
+                exchange=settings.RABBITMQ_DISPATCH_EXCHANGE, exchange_type="direct", durable=True
+            )
+            result = _dispatch_consumer_channel.queue_declare(
+                queue=settings.RABBITMQ_MOTOTAXI_DISPATCH_QUEUE, durable=True
+            )
+            queue_name = result.method.queue
+            _dispatch_consumer_channel.queue_bind(
+                exchange=settings.RABBITMQ_DISPATCH_EXCHANGE,
+                queue=queue_name,
+                routing_key=settings.RABBITMQ_DISPATCH_MOTOTAXI_ROUTING_KEY,
+            )
+            _dispatch_consumer_tag = _dispatch_consumer_channel.basic_consume(
+                queue=queue_name, on_message_callback=on_dispatch_message_callback, auto_ack=False
+            )
+
+            logger.info(f"Esperando eventos de despacho en la cola '{queue_name}'")
+
+            _dispatch_consumer_channel.start_consuming()
+            break
+
+        except pika.exceptions.AMQPConnectionError as e:
+            retries += 1
+            if retries >= max_retries:
+                logger.error(f"No se pudo conectar a RabbitMQ tras {max_retries} intentos: {e}")
+                break
+
+            logger.warning(
+                f"Conexión a RabbitMQ falló (intento {retries}/{max_retries}). "
+                f"Reintentando en 2s... Error: {e}"
+            )
+            time.sleep(2)
+
+        except KeyboardInterrupt:
+            logger.info("Consumidor de despacho detenido manualmente")
+            break
+        except Exception as e:
+            logger.exception(f"Error inesperado en consumidor de despacho: {e}")
+            break
+        finally:
+            stop_dispatch_consumer()
 
 
 def stop_dispatch_consumer():

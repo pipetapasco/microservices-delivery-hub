@@ -4,6 +4,7 @@ Singleton connection manager for aio-pika RabbitMQ connections.
 Provides shared connection and channel for all consumers and producers.
 """
 from typing import Optional
+import asyncio
 
 import aio_pika
 from aio_pika import Channel
@@ -36,24 +37,36 @@ class RabbitMQConnection:
         if self.is_connected:
             return self._connection
 
-        try:
-            connection_url = (
-                f"amqp://{settings.RABBITMQ_USER}:{settings.RABBITMQ_PASSWORD}"
-                f"@{settings.RABBITMQ_HOST}:{settings.RABBITMQ_PORT}/"
-            )
+        retries = 0
+        max_retries = 30
 
-            self._connection = await aio_pika.connect_robust(
-                connection_url, connection_class=aio_pika.RobustConnection
-            )
+        while retries < max_retries:
+            try:
+                connection_url = (
+                    f"amqp://{settings.RABBITMQ_USER}:{settings.RABBITMQ_PASSWORD}"
+                    f"@{settings.RABBITMQ_HOST}:{settings.RABBITMQ_PORT}/"
+                )
 
-            logger.info(
-                f"Connected to RabbitMQ at {settings.RABBITMQ_HOST}:{settings.RABBITMQ_PORT}"
-            )
-            return self._connection
+                self._connection = await aio_pika.connect_robust(
+                    connection_url, connection_class=aio_pika.RobustConnection
+                )
 
-        except Exception as e:
-            logger.exception(f"Failed to connect to RabbitMQ: {e}")
-            raise
+                logger.info(
+                    f"Connected to RabbitMQ at {settings.RABBITMQ_HOST}:{settings.RABBITMQ_PORT}"
+                )
+                return self._connection
+
+            except Exception as e:
+                retries += 1
+                if retries >= max_retries:
+                    logger.exception(f"Failed to connect to RabbitMQ after {max_retries} attempts: {e}")
+                    raise
+
+                logger.warning(
+                    f"Connection to RabbitMQ failed (attempt {retries}/{max_retries}). "
+                    f"Retrying in 2 seconds... Error: {e}"
+                )
+                await asyncio.sleep(2)
 
     async def get_channel(self) -> Channel:
         """Get or create a channel."""
@@ -79,5 +92,4 @@ class RabbitMQConnection:
             logger.info("RabbitMQ connection closed")
 
 
-# Singleton instance
 rabbitmq_connection = RabbitMQConnection()

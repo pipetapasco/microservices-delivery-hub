@@ -64,6 +64,10 @@ def create_and_configure_app():
     app_instance.register_blueprint(menu_api_bp)
     app_instance.register_blueprint(web_menu_bp)
 
+    @app_instance.route("/health")
+    def health_check():
+        return jsonify(status="ok"), 200
+
     logger.info("Application initialized.")
     return app_instance
 

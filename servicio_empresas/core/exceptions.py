@@ -9,6 +9,10 @@ class ValidationError(AppError):
     pass
 
 
+class AppValidationError(AppError):
+    pass
+
+
 class ServiceError(AppError):
     pass
 

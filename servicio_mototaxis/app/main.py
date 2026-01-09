@@ -95,3 +95,8 @@ app.include_router(location_ws_router.router)
 @app.get("/", tags=["Root"])
 async def read_root():
     return {"mensaje": f"Bienvenido a {settings.PROJECT_NAME}"}
+
+
+@app.get("/health", tags=["Health"])
+async def health_check():
+    return {"status": "ok"}
