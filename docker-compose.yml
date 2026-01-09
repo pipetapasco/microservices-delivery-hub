@@ -1,0 +1,436 @@
+services:
+  # ===========================================================================
+  # INFRASTRUCTURE - Message Broker
+  # ===========================================================================
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: kaumer_rabbitmq
+    hostname: rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - rabbitmq_logs:/var/log/rabbitmq
+    networks:
+      - kaumer_network
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================================================
+  # INFRASTRUCTURE - Cache & Session Store
+  # ===========================================================================
+
+  redis:
+    image: redis:7-alpine
+    container_name: kaumer_redis
+    hostname: redis
+    restart: unless-stopped
+    command: >
+      redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - kaumer_network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================================================
+  # INFRASTRUCTURE - PostgreSQL (Pedidos & Mototaxis)
+  # ===========================================================================
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: kaumer_postgres
+    hostname: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DEFAULT_DB:-postgres}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - kaumer_network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DEFAULT_DB:-postgres}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================================================
+  # INFRASTRUCTURE - MongoDB (Empresas)
+  # ===========================================================================
+
+  mongo:
+    image: mongo:7.0
+    container_name: kaumer_mongo
+    hostname: mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?MONGO_ROOT_PASSWORD is required}
+      MONGO_INITDB_DATABASE: ${MONGO_DB_NAME:-db_empresas}
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+      - mongo_config:/data/configdb
+      - ./docker/mongo/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - kaumer_network
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================================================
+  # MICROSERVICES - Bot WhatsApp (Flask + Gunicorn)
+  # ===========================================================================
+
+  bot_whatsapp:
+    build:
+      context: ./servicio_bot_whatsapp
+      dockerfile: Dockerfile
+    image: kaumer/bot_whatsapp:${IMAGE_TAG:-latest}
+    container_name: kaumer_bot_whatsapp
+    hostname: bot_whatsapp
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:?TWILIO_ACCOUNT_SID is required}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:?TWILIO_AUTH_TOKEN is required}
+      TWILIO_WHATSAPP_NUMBER: ${TWILIO_WHATSAPP_NUMBER:?TWILIO_WHATSAPP_NUMBER is required}
+
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
+
+      REDIS_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_HEARTBEAT: ${RABBITMQ_HEARTBEAT:-600}
+      RABBITMQ_BLOCKED_CONNECTION_TIMEOUT: ${RABBITMQ_BLOCKED_CONNECTION_TIMEOUT:-300}
+
+      RABBITMQ_PEDIDOS_EXCHANGE: ${RABBITMQ_PEDIDOS_EXCHANGE:-pedidos_exchange}
+      RABBITMQ_PEDIDOS_QUEUE: ${RABBITMQ_PEDIDOS_QUEUE:-cola_pedidos_nuevos}
+      RABBITMQ_PEDIDOS_ROUTING_KEY: ${RABBITMQ_PEDIDOS_ROUTING_KEY:-pedido.nuevo}
+      RABBITMQ_DISPATCH_EXCHANGE: ${RABBITMQ_DISPATCH_EXCHANGE:-dispatch_exchange}
+      RABBITMQ_CLIENT_NOTIFICATION_QUEUE: ${RABBITMQ_CLIENT_NOTIFICATION_QUEUE:-cola_notificaciones_cliente_bot}
+      RABBITMQ_NOTIFY_CLIENT_ROUTING_KEY: ${RABBITMQ_NOTIFY_CLIENT_ROUTING_KEY:-pedido.asignado_notificar_cliente}
+      INCOMING_MESSAGES_EXCHANGE: ${INCOMING_MESSAGES_EXCHANGE:-incoming_messages_exchange}
+      INCOMING_MESSAGES_QUEUE: ${INCOMING_MESSAGES_QUEUE:-incoming_messages}
+      INCOMING_MESSAGES_ROUTING_KEY: ${INCOMING_MESSAGES_ROUTING_KEY:-message.incoming}
+
+      WHISPER_MODEL_SIZE: ${WHISPER_MODEL_SIZE:-small}
+      MAX_AUDIO_SIZE_MB: ${MAX_AUDIO_SIZE_MB:-10}
+    ports:
+      - "${BOT_WHATSAPP_PORT:-5000}:5000"
+    volumes:
+      - bot_whatsapp_temp:/app/temp_audio
+    networks:
+      - kaumer_network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ===========================================================================
+  # MICROSERVICES - Empresas (Quart + Hypercorn)
+  # ===========================================================================
+
+  servicio_empresas:
+    build:
+      context: ./servicio_empresas
+      dockerfile: Dockerfile
+    image: kaumer/servicio_empresas:${IMAGE_TAG:-latest}
+    container_name: kaumer_servicio_empresas
+    hostname: servicio_empresas
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      FLASK_DEBUG: ${FLASK_DEBUG:-False}
+      SECRET_KEY: ${EMPRESAS_SECRET_KEY:?EMPRESAS_SECRET_KEY is required}
+      JWT_SECRET_KEY: ${EMPRESAS_JWT_SECRET_KEY:?EMPRESAS_JWT_SECRET_KEY is required}
+      SERVICIO_EMPRESAS_PORT: 5001
+
+      MONGO_URI: mongodb://${MONGO_APP_USER:-app_user}:${MONGO_APP_PASSWORD}@mongo:27017/${MONGO_DB_NAME:-db_empresas}?authSource=${MONGO_DB_NAME:-db_empresas}
+      MONGO_DB_NAME: ${MONGO_DB_NAME:-db_empresas}
+      MONGO_MENUS_COLLECTION: ${MONGO_MENUS_COLLECTION:-menus}
+      MONGO_USERS_COLLECTION: ${MONGO_USERS_COLLECTION:-usuarios_empresas}
+    ports:
+      - "${SERVICIO_EMPRESAS_PORT:-5001}:5001"
+    volumes:
+      - empresas_temp_uploads:/app/temp_uploads
+    networks:
+      - kaumer_network
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # ===========================================================================
+  # MICROSERVICES - Pedidos (FastAPI + Uvicorn)
+  # ===========================================================================
+
+  servicio_pedidos:
+    build:
+      context: ./servicio_pedidos
+      dockerfile: Dockerfile
+    image: kaumer/servicio_pedidos:${IMAGE_TAG:-latest}
+    container_name: kaumer_servicio_pedidos
+    hostname: servicio_pedidos
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      PROJECT_NAME: ${PEDIDOS_PROJECT_NAME:-Servicio de Pedidos}
+      API_V1_STR: /api/v1
+      PEDIDOS_SERVICE_PORT: 5003
+      SECRET_KEY: ${PEDIDOS_SECRET_KEY:?PEDIDOS_SECRET_KEY is required}
+      ALGORITHM: HS256
+
+      POSTGRES_SERVER_PEDIDOS: postgres
+      POSTGRES_PORT_PEDIDOS: 5432
+      POSTGRES_USER_PEDIDOS: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD_PEDIDOS: ${POSTGRES_PASSWORD}
+      POSTGRES_DB_PEDIDOS: ${PEDIDOS_DB_NAME:-pedidos_db}
+
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_PEDIDOS_EXCHANGE: ${RABBITMQ_PEDIDOS_EXCHANGE:-pedidos_exchange}
+      RABBITMQ_PEDIDOS_QUEUE: ${RABBITMQ_PEDIDOS_QUEUE:-cola_pedidos_nuevos}
+      RABBITMQ_PEDIDOS_ROUTING_KEY: ${RABBITMQ_PEDIDOS_ROUTING_KEY:-pedido.nuevo}
+      RABBITMQ_DISPATCH_EXCHANGE: ${RABBITMQ_DISPATCH_EXCHANGE:-dispatch_exchange}
+      RABBITMQ_DISPATCH_MOTOTAXI_ROUTING_KEY: ${RABBITMQ_DISPATCH_MOTOTAXI_ROUTING_KEY:-pedido.requiere_mototaxi}
+      RABBITMQ_ORDER_UPDATES_QUEUE: ${RABBITMQ_ORDER_UPDATES_QUEUE:-cola_actualizaciones_pedido}
+      RABBITMQ_ORDER_UPDATE_ROUTING_KEY: ${RABBITMQ_ORDER_UPDATE_ROUTING_KEY:-pedido.conductor_acepto}
+      RABBITMQ_NOTIFY_CLIENT_ROUTING_KEY: ${RABBITMQ_NOTIFY_CLIENT_ROUTING_KEY:-pedido.asignado_notificar_cliente}
+    ports:
+      - "${SERVICIO_PEDIDOS_PORT:-5003}:5003"
+    networks:
+      - kaumer_network
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5003/health')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # ===========================================================================
+  # MICROSERVICES - Mototaxis (FastAPI + Uvicorn)
+  # ===========================================================================
+
+  servicio_mototaxis:
+    build:
+      context: ./servicio_mototaxis
+      dockerfile: Dockerfile
+    image: kaumer/servicio_mototaxis:${IMAGE_TAG:-latest}
+    container_name: kaumer_servicio_mototaxis
+    hostname: servicio_mototaxis
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      PROJECT_NAME: ${MOTOTAXIS_PROJECT_NAME:-Servicio de Mototaxis}
+      API_V1_STR: /api/v1
+      MOTOTAXIS_SERVICE_PORT: 5002
+      DEBUG: ${MOTOTAXIS_DEBUG:-False}
+
+      JWT_SECRET_KEY_MOTOTAXIS: ${MOTOTAXIS_JWT_SECRET_KEY:?MOTOTAXIS_JWT_SECRET_KEY is required}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+
+      POSTGRES_SERVER: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${MOTOTAXIS_DB_NAME:-mototaxis_db}
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${MOTOTAXIS_REDIS_DB:-1}
+      REDIS_DRIVER_LOCATIONS_KEY: ${REDIS_DRIVER_LOCATIONS_KEY:-driver_locations}
+
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_DISPATCH_EXCHANGE: ${RABBITMQ_DISPATCH_EXCHANGE:-dispatch_exchange}
+      RABBITMQ_MOTOTAXI_DISPATCH_QUEUE: ${RABBITMQ_MOTOTAXI_DISPATCH_QUEUE:-cola_despacho_mototaxis}
+      RABBITMQ_DISPATCH_MOTOTAXI_ROUTING_KEY: ${RABBITMQ_DISPATCH_MOTOTAXI_ROUTING_KEY:-pedido.requiere_mototaxi}
+      RABBITMQ_ORDER_UPDATE_ROUTING_KEY: ${RABBITMQ_ORDER_UPDATE_ROUTING_KEY:-pedido.conductor_acepto}
+    ports:
+      - "${SERVICIO_MOTOTAXIS_PORT:-5002}:5002"
+    networks:
+      - kaumer_network
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5002/health')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+
+networks:
+  kaumer_network:
+    name: kaumer_network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+
+volumes:
+  rabbitmq_data:
+    name: kaumer_rabbitmq_data
+  rabbitmq_logs:
+    name: kaumer_rabbitmq_logs
+  redis_data:
+    name: kaumer_redis_data
+  postgres_data:
+    name: kaumer_postgres_data
+  mongo_data:
+    name: kaumer_mongo_data
+  mongo_config:
+    name: kaumer_mongo_config
+
+  bot_whatsapp_temp:
+    name: kaumer_bot_whatsapp_temp
+  empresas_temp_uploads:
+    name: kaumer_empresas_temp_uploads
