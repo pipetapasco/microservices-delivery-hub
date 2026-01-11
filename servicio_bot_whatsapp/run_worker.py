@@ -5,7 +5,6 @@ import sys
 
 import config
 from logger import get_logger
-
 from services.rabbitmq_service import close_all_connections
 from services.redis_client import close_redis_connection
 from workers.message_worker import start_worker, stop_worker

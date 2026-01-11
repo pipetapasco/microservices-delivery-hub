@@ -2,7 +2,6 @@ import logging
 import os
 import sys
 
-from config import app_config
 from flask import Flask, jsonify
 from flask_jwt_extended import JWTManager
 
@@ -10,6 +9,7 @@ from api.api_key_management_routes import api_key_bp
 from api.auth_api_routes import auth_bp
 from api.menu_api_routes import menu_api_bp
 from api.web_panel_menu_api_routes import web_menu_bp
+from config import app_config
 
 
 def configure_logging():

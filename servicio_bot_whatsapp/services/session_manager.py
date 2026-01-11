@@ -3,10 +3,9 @@
 import json
 from datetime import datetime
 
-from logger import get_logger
-
 from core.exceptions import SessionError
 from core.schemas import UserSession
+from logger import get_logger
 from services.redis_client import get_redis_client
 
 logger = get_logger(__name__)

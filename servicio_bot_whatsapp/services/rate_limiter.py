@@ -1,9 +1,8 @@
 """Rate limiter using Redis sliding window."""
 
 import config
-from logger import get_logger
-
 from core.exceptions import RateLimitExceededError
+from logger import get_logger
 from services.redis_client import get_redis_client
 
 logger = get_logger(__name__)

@@ -3,11 +3,11 @@
 import atexit
 import os
 
-import config
 from flask import Flask
-from logger import get_logger
 
+import config
 from api.webhook import webhook_bp
+from logger import get_logger
 from services.rabbitmq_service import close_all_connections
 from services.redis_client import close_redis_connection
 

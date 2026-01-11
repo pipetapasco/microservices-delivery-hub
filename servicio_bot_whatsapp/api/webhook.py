@@ -5,11 +5,10 @@ Processing is done by workers for scalability.
 
 import contextlib
 
-import config
 from flask import Blueprint, Response, request
-from logger import get_logger
 from twilio.request_validator import RequestValidator
 
+import config
 from core.exceptions import (
     ConfigurationError,
     MessageQueueError,
@@ -17,6 +16,7 @@ from core.exceptions import (
     TwilioValidationError,
 )
 from core.schemas import IncomingMessagePayload
+from logger import get_logger
 from services.rabbitmq_service import publish_incoming_message
 from services.rate_limiter import get_rate_limiter
 

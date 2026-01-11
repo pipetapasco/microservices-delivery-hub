@@ -3,12 +3,12 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
-import config
 import google.generativeai as genai
-from logger import get_logger
 
+import config
 from core.exceptions import ConfigurationError, GeminiAnalysisError
 from core.schemas import GeminiExtractedData
+from logger import get_logger
 
 logger = get_logger(__name__)
 

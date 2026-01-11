@@ -1,7 +1,8 @@
 import logging
 
-from config import app_config
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection, AsyncIOMotorDatabase
+
+from config import app_config
 
 logger = logging.getLogger(__name__)
 

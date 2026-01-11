@@ -4,10 +4,9 @@ import asyncio
 import json
 
 import config
-from logger import get_logger
-
 from core.exceptions import AudioProcessingError, GeminiAnalysisError, MessageQueueError
 from core.schemas import IncomingMessagePayload
+from logger import get_logger
 from services.audio_handler import get_audio_handler
 from services.dialogue_manager import DialogueManager
 from services.gemini_analyzer import analyze_message

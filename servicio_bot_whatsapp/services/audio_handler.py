@@ -7,12 +7,16 @@ import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
-from faster_whisper import WhisperModel
-import config
 import httpx
-from logger import get_logger
+from faster_whisper import WhisperModel
 
-from core.exceptions import AudioProcessingError, AudioSizeLimitError, InvalidMimeTypeError
+import config
+from core.exceptions import (
+    AudioProcessingError,
+    AudioSizeLimitError,
+    InvalidMimeTypeError,
+)
+from logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -145,7 +149,7 @@ class AudioHandler:
             raise AudioProcessingError("Whisper model not available")
 
         try:
-            segments, info = self._whisper_model.transcribe(filepath, beam_size=5)
+            segments, _ = self._whisper_model.transcribe(filepath, beam_size=5)
             text = " ".join([segment.text for segment in segments]).strip()
             return text if text else None
         except Exception:

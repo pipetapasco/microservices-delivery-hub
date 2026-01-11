@@ -2,10 +2,10 @@ import asyncio
 import contextlib
 import json
 
-import config
 import pika
-from logger import get_logger
 
+import config
+from logger import get_logger
 from services.twilio_service import enviar_mensaje_whatsapp
 
 logger = get_logger(__name__)

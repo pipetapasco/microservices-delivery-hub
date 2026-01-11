@@ -1,9 +1,10 @@
 """Redis client singleton with connection pooling."""
 
-import config
 import redis
-from logger import get_logger
 from redis.exceptions import ConnectionError as RedisConnectionError
+
+import config
+from logger import get_logger
 
 logger = get_logger(__name__)
 

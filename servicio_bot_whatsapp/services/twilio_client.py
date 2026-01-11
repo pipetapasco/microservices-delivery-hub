@@ -1,11 +1,11 @@
 """Twilio client for sending WhatsApp messages."""
 
-import config
-from logger import get_logger
 from twilio.base.exceptions import TwilioRestException
 from twilio.rest import Client
 
+import config
 from core.exceptions import ConfigurationError
+from logger import get_logger
 
 logger = get_logger(__name__)
 

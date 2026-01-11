@@ -48,7 +48,7 @@ fixable = ["ALL"]
 unfixable = []
 
 [tool.ruff.lint.isort]
-known-first-party = ["app", "core", "services", "api", "workers", "consumers"]
+known-first-party = ["app", "core", "services", "api", "workers", "consumers", "config", "logger"]
 force-single-line = false
 combine-as-imports = true
 
