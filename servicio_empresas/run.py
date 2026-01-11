@@ -12,7 +12,6 @@ from api.menu_api_routes import menu_api_bp
 from api.web_panel_menu_api_routes import web_menu_bp
 from config import app_config
 
-
 SWAGGER_TEMPLATE = {
     "swagger": "2.0",
     "info": {
@@ -52,8 +51,8 @@ SWAGGER_CONFIG = {
         {
             "endpoint": "apispec",
             "route": "/apispec.json",
-            "rule_filter": lambda rule: True,
-            "model_filter": lambda tag: True,
+            "rule_filter": lambda _rule: True,
+            "model_filter": lambda _tag: True,
         }
     ],
     "static_url_path": "/flasgger_static",
