@@ -739,7 +739,7 @@ Seguimos [Conventional Commits](https://www.conventionalcommits.org/):
   <a href="https://github.com/pipetapasco">
     <img src="https://img.shields.io/badge/GitHub-pipetapasco-181717?style=for-the-badge&logo=github&logoColor=white" />
   </a>
-  <a href="mailto:pipetapasco@gmail.com">
+  <a href="mailto:pipetapasco21@gmail.com">
     <img src="https://img.shields.io/badge/Email-Contacto-EA4335?style=for-the-badge&logo=gmail&logoColor=white" />
   </a>
 </p>
