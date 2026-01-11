@@ -7,6 +7,7 @@ import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
+from faster_whisper import WhisperModel
 import config
 import httpx
 from logger import get_logger
@@ -48,10 +49,10 @@ class AudioHandler:
                 return
 
             try:
-                import whisper
-
                 logger.info(f"Loading Whisper model: {config.WHISPER_MODEL_SIZE}")
-                self._whisper_model = whisper.load_model(config.WHISPER_MODEL_SIZE)
+                self._whisper_model = WhisperModel(
+                    config.WHISPER_MODEL_SIZE, device="cpu", compute_type="int8"
+                )
                 self._model_loaded = True
                 logger.info("Whisper model loaded successfully")
             except Exception:
@@ -144,8 +145,8 @@ class AudioHandler:
             raise AudioProcessingError("Whisper model not available")
 
         try:
-            result = self._whisper_model.transcribe(filepath, fp16=False)
-            text = result.get("text", "").strip()
+            segments, info = self._whisper_model.transcribe(filepath, beam_size=5)
+            text = " ".join([segment.text for segment in segments]).strip()
             return text if text else None
         except Exception:
             logger.error("Transcription failed", exc_info=True)
