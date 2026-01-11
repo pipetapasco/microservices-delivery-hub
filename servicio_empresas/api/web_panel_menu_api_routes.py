@@ -18,6 +18,39 @@ web_menu_bp = Blueprint("web_menu_bp", __name__, url_prefix="/panel/v1/menus")
 @web_menu_bp.route("/", methods=["POST"])
 @jwt_required()
 async def web_reemplazar_menu_completo_empresa():
+    """
+    Reemplazar menú completo (Panel Web)
+    ---
+    tags:
+      - Menus (Panel)
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - id_empresa
+            - items_menu
+          properties:
+            id_empresa:
+              type: string
+            items_menu:
+              type: array
+              items:
+                type: object
+    responses:
+      201:
+        description: Menú reemplazado exitosamente
+      400:
+        description: Error de validación
+      403:
+        description: No autorizado para esta empresa
+    """
     id_empresa_jwt = get_jwt_identity()
     data = request.json
     if not data:
@@ -48,6 +81,26 @@ async def web_reemplazar_menu_completo_empresa():
 @web_menu_bp.route("/<id_empresa_param>", methods=["GET"])
 @jwt_required()
 async def web_consultar_menu_completo_empresa(id_empresa_param: str):
+    """
+    Consultar menú completo (Panel Web)
+    ---
+    tags:
+      - Menus (Panel)
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: id_empresa_param
+        type: string
+        required: true
+    responses:
+      200:
+        description: Menú de la empresa
+      403:
+        description: No autorizado
+      404:
+        description: Menú no encontrado
+    """
     id_empresa_jwt = get_jwt_identity()
     if str(id_empresa_jwt) != str(id_empresa_param):
         return jsonify({"error": "No autorizado para consultar este menú."}), 403
@@ -62,6 +115,37 @@ async def web_consultar_menu_completo_empresa(id_empresa_param: str):
 @web_menu_bp.route("/via-url", methods=["POST"])
 @jwt_required()
 async def web_recibir_menu_completo_via_url():
+    """
+    Cargar menú desde URL (Panel Web)
+    ---
+    tags:
+      - Menus (Panel)
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - id_empresa
+            - url_del_archivo
+          properties:
+            id_empresa:
+              type: string
+            url_del_archivo:
+              type: string
+    responses:
+      202:
+        description: Menú en proceso de carga
+      400:
+        description: Error de validación
+      403:
+        description: No autorizado
+    """
     id_empresa_jwt = get_jwt_identity()
     data = request.json
     if not data:
@@ -92,6 +176,34 @@ def archivo_permitido_web(filename):
 @web_menu_bp.route("/upload-file", methods=["POST"])
 @jwt_required()
 async def web_subir_archivo_menu_completo():
+    """
+    Subir archivo de menú (Panel Web)
+    ---
+    tags:
+      - Menus (Panel)
+    security:
+      - Bearer: []
+    consumes:
+      - multipart/form-data
+    parameters:
+      - in: formData
+        name: menu_file
+        type: file
+        required: true
+        description: Archivo JSON o CSV
+      - in: formData
+        name: id_empresa
+        type: string
+        required: false
+        description: ID de empresa (opcional, se usa el del JWT)
+    responses:
+      202:
+        description: Archivo procesado
+      400:
+        description: Error de validación
+      403:
+        description: Conflicto de ID de empresa
+    """
     id_empresa_jwt = get_jwt_identity()
     if "menu_file" not in request.files:
         return jsonify({"error": "Falta 'menu_file'."}), 400
@@ -117,6 +229,36 @@ async def web_subir_archivo_menu_completo():
 @web_menu_bp.route("/items", methods=["POST"])
 @jwt_required()
 async def web_agregar_nuevo_item():
+    """
+    Agregar nuevo ítem al menú (Panel Web)
+    ---
+    tags:
+      - Menus (Panel)
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            nombre:
+              type: string
+            precio:
+              type: number
+            descripcion:
+              type: string
+            categoria:
+              type: string
+    responses:
+      201:
+        description: Ítem agregado
+      400:
+        description: Error de validación
+    """
     id_empresa_jwt = get_jwt_identity()
 
     item_data = request.json
@@ -133,6 +275,24 @@ async def web_agregar_nuevo_item():
 @web_menu_bp.route("/items/<item_uuid>", methods=["GET"])
 @jwt_required()
 async def web_obtener_item(item_uuid: str):
+    """
+    Obtener ítem específico (Panel Web)
+    ---
+    tags:
+      - Menus (Panel)
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: item_uuid
+        type: string
+        required: true
+    responses:
+      200:
+        description: Detalles del ítem
+      404:
+        description: Ítem no encontrado
+    """
     id_empresa_jwt = get_jwt_identity()
 
     item = await obtener_item_especifico(id_empresa_jwt, item_uuid)
@@ -145,6 +305,42 @@ async def web_obtener_item(item_uuid: str):
 @web_menu_bp.route("/items/<item_uuid>", methods=["PUT"])
 @jwt_required()
 async def web_actualizar_item(item_uuid: str):
+    """
+    Actualizar ítem del menú (Panel Web)
+    ---
+    tags:
+      - Menus (Panel)
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
+    parameters:
+      - in: path
+        name: item_uuid
+        type: string
+        required: true
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            nombre:
+              type: string
+            precio:
+              type: number
+            descripcion:
+              type: string
+            categoria:
+              type: string
+    responses:
+      200:
+        description: Ítem actualizado
+      400:
+        description: Error de validación
+      404:
+        description: Ítem no encontrado
+    """
     id_empresa_jwt = get_jwt_identity()
 
     datos_actualizacion = request.json
@@ -162,6 +358,24 @@ async def web_actualizar_item(item_uuid: str):
 @web_menu_bp.route("/items/<item_uuid>", methods=["DELETE"])
 @jwt_required()
 async def web_eliminar_item(item_uuid: str):
+    """
+    Eliminar ítem del menú (Panel Web)
+    ---
+    tags:
+      - Menus (Panel)
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: item_uuid
+        type: string
+        required: true
+    responses:
+      200:
+        description: Ítem eliminado
+      404:
+        description: Ítem no encontrado
+    """
     id_empresa_jwt = get_jwt_identity()
 
     exito, resultado = await eliminar_item_menu(id_empresa_jwt, item_uuid)

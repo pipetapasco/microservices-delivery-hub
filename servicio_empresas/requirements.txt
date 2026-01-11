@@ -10,3 +10,4 @@ pydantic[email]
 hypercorn==0.17.1
 aiofiles==24.1.0
 dnspython==2.7.0
+flasgger==0.9.7.1

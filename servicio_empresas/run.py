@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 
+from flasgger import Swagger
 from flask import Flask, jsonify
 from flask_jwt_extended import JWTManager
 
@@ -10,6 +11,55 @@ from api.auth_api_routes import auth_bp
 from api.menu_api_routes import menu_api_bp
 from api.web_panel_menu_api_routes import web_menu_bp
 from config import app_config
+
+
+SWAGGER_TEMPLATE = {
+    "swagger": "2.0",
+    "info": {
+        "title": "Servicio Empresas API",
+        "description": "API para gestión de empresas, menús y autenticación del sistema de delivery",
+        "version": "1.0.0",
+        "contact": {
+            "name": "Microservices Delivery Hub",
+            "url": "https://github.com/pipetapasco/microservices-delivery-hub",
+        },
+    },
+    "securityDefinitions": {
+        "Bearer": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+            "description": "JWT Authorization header usando el esquema Bearer. Ejemplo: 'Bearer {token}'",
+        },
+        "ApiKey": {
+            "type": "apiKey",
+            "name": "X-API-Key",
+            "in": "header",
+            "description": "API Key para autenticación de servicios externos",
+        },
+    },
+    "tags": [
+        {"name": "Auth", "description": "Autenticación y registro de usuarios"},
+        {"name": "API Keys", "description": "Gestión de API Keys para empresas"},
+        {"name": "Menus (API)", "description": "API pública para gestión de menús"},
+        {"name": "Menus (Panel)", "description": "API para el panel web de empresas"},
+    ],
+}
+
+SWAGGER_CONFIG = {
+    "headers": [],
+    "specs": [
+        {
+            "endpoint": "apispec",
+            "route": "/apispec.json",
+            "rule_filter": lambda rule: True,
+            "model_filter": lambda tag: True,
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/docs",
+}
 
 
 def configure_logging():
@@ -44,6 +94,7 @@ def create_and_configure_app():
     app_instance.config["JWT_SECRET_KEY"] = app_config.JWT_SECRET_KEY
 
     JWTManager(app_instance)
+    Swagger(app_instance, template=SWAGGER_TEMPLATE, config=SWAGGER_CONFIG)
 
     @app_instance.errorhandler(404)
     def resource_not_found(e):
@@ -66,9 +117,24 @@ def create_and_configure_app():
 
     @app_instance.route("/health")
     def health_check():
+        """
+        Health Check
+        ---
+        tags:
+          - Health
+        responses:
+          200:
+            description: El servicio está funcionando correctamente
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: ok
+        """
         return jsonify(status="ok"), 200
 
-    logger.info("Application initialized.")
+    logger.info("Application initialized with Swagger documentation at /docs")
     return app_instance
 
 

@@ -19,6 +19,48 @@ def handle_exception(e):
 @api_key_bp.route("/", methods=["POST"])
 @jwt_required()
 async def endpoint_generar_api_key():
+    """
+    Generar una nueva API Key
+    ---
+    tags:
+      - API Keys
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
+              description: Nombre descriptivo para la API Key
+              example: "Producción App Móvil"
+    responses:
+      201:
+        description: API Key generada exitosamente
+        schema:
+          type: object
+          properties:
+            mensaje:
+              type: string
+            api_key:
+              type: string
+              description: La API Key en texto plano (solo se muestra una vez)
+            nombre_key:
+              type: string
+      400:
+        description: Error de validación o token inválido
+      401:
+        description: No autorizado - Token JWT requerido
+      500:
+        description: Error interno del servidor
+    """
     current_user = get_jwt_identity()
     id_empresa_autenticada = (
         current_user.get("id_empresa") if isinstance(current_user, dict) else current_user
@@ -57,6 +99,38 @@ async def endpoint_generar_api_key():
 @api_key_bp.route("/", methods=["GET"])
 @jwt_required()
 async def endpoint_listar_api_keys():
+    """
+    Listar todas las API Keys de la empresa
+    ---
+    tags:
+      - API Keys
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Lista de API Keys (sin mostrar las claves en texto plano)
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              created_at:
+                type: string
+                format: date-time
+              last_used:
+                type: string
+                format: date-time
+      400:
+        description: Token JWT inválido
+      401:
+        description: No autorizado - Token JWT requerido
+      500:
+        description: Error interno del servidor
+    """
     current_user = get_jwt_identity()
     id_empresa_autenticada = (
         current_user.get("id_empresa") if isinstance(current_user, dict) else current_user
@@ -75,6 +149,34 @@ async def endpoint_listar_api_keys():
 @api_key_bp.route("/<key_id>", methods=["DELETE"])
 @jwt_required()
 async def endpoint_revocar_api_key(key_id: str):
+    """
+    Revocar una API Key existente
+    ---
+    tags:
+      - API Keys
+    security:
+      - Bearer: []
+    parameters:
+      - in: path
+        name: key_id
+        type: string
+        required: true
+        description: ID de la API Key a revocar
+    responses:
+      200:
+        description: API Key revocada exitosamente
+        schema:
+          type: object
+          properties:
+            mensaje:
+              type: string
+      400:
+        description: Token JWT inválido o API Key no encontrada
+      401:
+        description: No autorizado - Token JWT requerido
+      500:
+        description: Error interno del servidor
+    """
     current_user = get_jwt_identity()
     id_empresa_autenticada = (
         current_user.get("id_empresa") if isinstance(current_user, dict) else current_user

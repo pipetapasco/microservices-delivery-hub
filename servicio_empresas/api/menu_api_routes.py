@@ -48,6 +48,51 @@ def handle_exception(e):
 @menu_api_bp.route("/", methods=["POST"])
 @api_key_required
 async def api_reemplazar_menu_completo_empresa():
+    """
+    Reemplazar menú completo de la empresa
+    ---
+    tags:
+      - Menus (API)
+    security:
+      - ApiKey: []
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - id_empresa
+            - items_menu
+          properties:
+            id_empresa:
+              type: string
+              example: "empresa_123"
+            items_menu:
+              type: array
+              items:
+                type: object
+                properties:
+                  nombre:
+                    type: string
+                  precio:
+                    type: number
+                  descripcion:
+                    type: string
+                  categoria:
+                    type: string
+    responses:
+      201:
+        description: Menú reemplazado exitosamente
+      400:
+        description: Error de validación
+      403:
+        description: API Key no corresponde a la empresa
+      500:
+        description: Error interno del servidor
+    """
     try:
         id_empresa_autenticada = getattr(g, "id_empresa_autenticada_por_api_key", None)
         data = request.json
@@ -69,6 +114,36 @@ async def api_reemplazar_menu_completo_empresa():
 @menu_api_bp.route("/<id_empresa_param>", methods=["GET"])
 @api_key_required
 async def api_consultar_menu_completo_empresa(id_empresa_param: str):
+    """
+    Consultar menú completo de una empresa
+    ---
+    tags:
+      - Menus (API)
+    security:
+      - ApiKey: []
+    parameters:
+      - in: path
+        name: id_empresa_param
+        type: string
+        required: true
+        description: ID de la empresa
+    responses:
+      200:
+        description: Menú de la empresa
+        schema:
+          type: object
+          properties:
+            id_empresa:
+              type: string
+            items_menu:
+              type: array
+              items:
+                type: object
+      403:
+        description: No autorizado
+      404:
+        description: Menú no encontrado
+    """
     try:
         id_empresa_autenticada = getattr(g, "id_empresa_autenticada_por_api_key", None)
         if id_empresa_autenticada != id_empresa_param:
@@ -83,6 +158,40 @@ async def api_consultar_menu_completo_empresa(id_empresa_param: str):
 @menu_api_bp.route("/via-url", methods=["POST"])
 @api_key_required
 async def api_recibir_menu_via_url():
+    """
+    Cargar menú desde URL externa
+    ---
+    tags:
+      - Menus (API)
+    security:
+      - ApiKey: []
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - id_empresa
+            - url_del_archivo
+          properties:
+            id_empresa:
+              type: string
+            url_del_archivo:
+              type: string
+              description: URL del archivo JSON o CSV con el menú
+    responses:
+      202:
+        description: Menú en proceso de carga
+      400:
+        description: Error de validación
+      403:
+        description: No autorizado
+      502:
+        description: Error descargando archivo desde URL
+    """
     try:
         id_empresa_autenticada = getattr(g, "id_empresa_autenticada_por_api_key", None)
         data = request.json
@@ -111,6 +220,34 @@ def archivo_permitido(filename):
 @menu_api_bp.route("/upload-file", methods=["POST"])
 @api_key_required
 async def api_subir_archivo_menu():
+    """
+    Subir archivo de menú (JSON o CSV)
+    ---
+    tags:
+      - Menus (API)
+    security:
+      - ApiKey: []
+    consumes:
+      - multipart/form-data
+    parameters:
+      - in: formData
+        name: menu_file
+        type: file
+        required: true
+        description: Archivo JSON o CSV con el menú
+      - in: formData
+        name: id_empresa
+        type: string
+        required: true
+        description: ID de la empresa
+    responses:
+      202:
+        description: Archivo procesado exitosamente
+      400:
+        description: Error de validación o tipo de archivo no permitido
+      403:
+        description: No autorizado
+    """
     try:
         id_empresa_autenticada = getattr(g, "id_empresa_autenticada_por_api_key", None)
 
@@ -139,6 +276,45 @@ async def api_subir_archivo_menu():
 @menu_api_bp.route("/<id_empresa>/items", methods=["POST"])
 @api_key_required
 async def api_agregar_nuevo_item(id_empresa: str):
+    """
+    Agregar nuevo ítem al menú
+    ---
+    tags:
+      - Menus (API)
+    security:
+      - ApiKey: []
+    consumes:
+      - application/json
+    parameters:
+      - in: path
+        name: id_empresa
+        type: string
+        required: true
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            nombre:
+              type: string
+              example: "Hamburguesa Clásica"
+            precio:
+              type: number
+              example: 12.99
+            descripcion:
+              type: string
+            categoria:
+              type: string
+              example: "Hamburguesas"
+    responses:
+      201:
+        description: Ítem agregado exitosamente
+      400:
+        description: Error de validación
+      403:
+        description: No autorizado
+    """
     try:
         id_empresa_autenticada = getattr(g, "id_empresa_autenticada_por_api_key", None)
         if id_empresa_autenticada != id_empresa:
@@ -154,6 +330,31 @@ async def api_agregar_nuevo_item(id_empresa: str):
 @menu_api_bp.route("/<id_empresa>/items/<item_uuid>", methods=["GET"])
 @api_key_required
 async def api_obtener_item(id_empresa: str, item_uuid: str):
+    """
+    Obtener un ítem específico del menú
+    ---
+    tags:
+      - Menus (API)
+    security:
+      - ApiKey: []
+    parameters:
+      - in: path
+        name: id_empresa
+        type: string
+        required: true
+      - in: path
+        name: item_uuid
+        type: string
+        required: true
+        description: UUID único del ítem
+    responses:
+      200:
+        description: Detalles del ítem
+      403:
+        description: No autorizado
+      404:
+        description: Ítem no encontrado
+    """
     try:
         id_empresa_autenticada = getattr(g, "id_empresa_autenticada_por_api_key", None)
         if id_empresa_autenticada != id_empresa:
@@ -168,6 +369,48 @@ async def api_obtener_item(id_empresa: str, item_uuid: str):
 @menu_api_bp.route("/<id_empresa>/items/<item_uuid>", methods=["PUT"])
 @api_key_required
 async def api_actualizar_item(id_empresa: str, item_uuid: str):
+    """
+    Actualizar un ítem del menú
+    ---
+    tags:
+      - Menus (API)
+    security:
+      - ApiKey: []
+    consumes:
+      - application/json
+    parameters:
+      - in: path
+        name: id_empresa
+        type: string
+        required: true
+      - in: path
+        name: item_uuid
+        type: string
+        required: true
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            nombre:
+              type: string
+            precio:
+              type: number
+            descripcion:
+              type: string
+            categoria:
+              type: string
+    responses:
+      200:
+        description: Ítem actualizado
+      400:
+        description: Error de validación
+      403:
+        description: No autorizado
+      404:
+        description: Ítem no encontrado
+    """
     try:
         id_empresa_autenticada = getattr(g, "id_empresa_autenticada_por_api_key", None)
         if id_empresa_autenticada != id_empresa:
@@ -183,6 +426,30 @@ async def api_actualizar_item(id_empresa: str, item_uuid: str):
 @menu_api_bp.route("/<id_empresa>/items/<item_uuid>", methods=["DELETE"])
 @api_key_required
 async def api_eliminar_item(id_empresa: str, item_uuid: str):
+    """
+    Eliminar un ítem del menú
+    ---
+    tags:
+      - Menus (API)
+    security:
+      - ApiKey: []
+    parameters:
+      - in: path
+        name: id_empresa
+        type: string
+        required: true
+      - in: path
+        name: item_uuid
+        type: string
+        required: true
+    responses:
+      200:
+        description: Ítem eliminado exitosamente
+      403:
+        description: No autorizado
+      404:
+        description: Ítem no encontrado
+    """
     try:
         id_empresa_autenticada = getattr(g, "id_empresa_autenticada_por_api_key", None)
         if id_empresa_autenticada != id_empresa:
